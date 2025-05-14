@@ -40,32 +40,46 @@ def map_point_to_unplaced(
             return match.queryIdx, True
     return None, False
 
-def get_idxs_in_correct_order(idx1, idx2):
-    """First idx must be smaller than second when using upper-triangular arrays (matches, keypoints)"""
-    if idx1 < idx2: return idx1, idx2
-    else: return idx2, idx1
-
-def check_and_get_unresected_point(resected_kpt_idx, match, resected_idx, unresected_idx):
+def get_idxs_in_correct_order(idx1: int, idx2: int) -> Tuple[int, int]:
     """
-    Check if a 3D point seen by the given resected image is involved in a match to the unresected image
-    and is therefore usable for Pnp.
+    Return a tuple of indices in ascending order for use with upper-triangular structures.
 
-    :param resected_kpt_idx: Index of keypoint in keypoints list for resected image
-    :param match: cv2.Dmatch object
-    :resected_idx: Index of the resected image
-    :unresected_idx: Index of the unresected image
+    Args:
+        idx1: First index.
+        idx2: Second index.
+
+    Returns:
+        A tuple (min(idx1, idx2), max(idx1, idx2)).
     """
+    return (idx1, idx2) if idx1 < idx2 else (idx2, idx1)
+
+
+def check_and_get_unresected_point(
+    resected_kpt_idx: int,
+    match: cv2.DMatch,
+    resected_idx: int,
+    unresected_idx: int
+) -> Tuple[Optional[int], bool]:
+    """
+    Determine if a 3D point from the resected image participates in a match to the unresected image.
+
+    Args:
+        resected_kpt_idx: Keypoint index in the resected image.
+        match:      OpenCV DMatch object linking two keypoints.
+        resected_idx:    Index of the resected image in pair ordering.
+        unresected_idx:  Index of the unresected image in pair ordering.
+
+    Returns:
+        A tuple (unresected_kpt_idx, True) if matched,
+        otherwise (None, False).
+    """
+    # If the resected image is the 'query' in the match
     if resected_idx < unresected_idx:
         if resected_kpt_idx == match.queryIdx:
-            unresected_kpt_idx = match.trainIdx
-            success = True
-            return unresected_kpt_idx, success
-        else:
-            return None, False
-    elif unresected_idx < resected_idx:
-        if resected_kpt_idx == match.trainIdx:
-            unresected_kpt_idx = match.queryIdx
-            success = True
-            return unresected_kpt_idx, success
-        else:
-            return None, False
+            return match.trainIdx, True
+        return None, False
+
+    # If the resected image is the 'train' in the match
+    if resected_kpt_idx == match.trainIdx:
+        return match.queryIdx, True
+    return None, False
