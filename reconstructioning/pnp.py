@@ -6,8 +6,6 @@ import cv2
 from .utils import (
     check_and_get_unresected_point,
     get_idxs_in_correct_order,
-    map_point_to_unplaced,
-    order_indices
 )
 from .data_structure import Point3DWithViews
 
@@ -15,31 +13,46 @@ from .data_structure import Point3DWithViews
 # ---------- Correspondence Matching ----------
 
 def match_unresected_point(
-    res_idx: int,
+    unresected_idx: int,
     match: cv2.DMatch,
-    ref_idx: int,
-    new_idx: int
+    reference_idx: int,
+    new_image_idx: int
 ) -> Tuple[int, bool]:
     """
-    Checks if a 3D point from res_idx matches new_idx and returns its keypoint index.
+    Checks if a 3D point from the unresected image (unresected_idx) matches a keypoint
+    in the new image (new_image_idx) based on the provided cv2.DMatch object.
 
-    :returns: (unresected_keypoint_index, success_flag)
+    Args:
+        unresected_idx (int): Index of the unresected image.
+        match (cv2.DMatch): The match object containing indices of matched keypoints.
+        reference_idx (int): Index of the reference image.
+        new_image_idx (int): Index of the new image being matched against.
+
+    Returns:
+        Tuple[int, bool]:
+            - Matched keypoint index in the new image (int).
+            - Success flag (True if a match is found, False otherwise).
     """
-    if res_idx < new_idx and match.queryIdx == res_idx:
+    # Case when unresected image index is smaller than new image index
+    if unresected_idx < new_image_idx and match.queryIdx == unresected_idx:
         return match.trainIdx, True
-    if new_idx < res_idx and match.trainIdx == res_idx:
+
+    # Case when new image index is smaller than unresected image index
+    if new_image_idx < unresected_idx and match.trainIdx == unresected_idx:
         return match.queryIdx, True
+
+    # No valid match found
     return None, False
 
 
 # ---------- PnP Correspondences ----------
 
 def fetch_pnp_correspondences(
-    resected_idx: int,
-    unresected_idx: int,
-    pts3d: List[Point3DWithViews],
-    matches: List[List[List[cv2.DMatch]]],
-    keypoints: List[List[cv2.KeyPoint]]
+    resected_cam_idx: int,
+    unresected_cam_idx: int,
+    points_3d: List[Point3DWithViews],
+    match_list: List[List[List[cv2.DMatch]]],
+    keypoints_list: List[List[cv2.KeyPoint]]
 ) -> Tuple[
     List[Point3DWithViews],
     List[np.ndarray],
@@ -47,38 +60,62 @@ def fetch_pnp_correspondences(
     np.ndarray
 ]:
     """
-    Gathers 3D-2D correspondences for PnP and flags points to triangulate.
+    Retrieves 3D-2D point correspondences for solving PnP and determines
+    points requiring triangulation.
 
-    :returns:
-      - pts3d: original list of 3D points
-      - pts3d_for_pnp: aligned 3D coordinates for PnP
-      - pts2d_for_pnp: aligned 2D image points for PnP
-      - triangulation_status: array flagging unmatched keypoints
+    Parameters:
+        resected_cam_idx (int): Index of camera with known pose.
+        unresected_cam_idx (int): Index of camera to estimate pose for.
+        points_3d (List[Point3DWithViews]): Existing 3D points with associated camera views.
+        match_list (List[List[List[cv2.DMatch]]]): Matches between all camera pairs.
+        keypoints_list (List[List[cv2.KeyPoint]]): Keypoints detected for each camera.
+
+    Returns:
+        Tuple containing:
+            - points_3d (List[Point3DWithViews]): Original list of 3D points.
+            - pnp_points_3d (List[np.ndarray]): 3D coordinates corresponding to matched 2D points for PnP.
+            - pnp_points_2d (List[Tuple[float, float]]): Matched 2D keypoints in the unresected camera.
+            - triangulation_flags (np.ndarray): Array indicating unmatched points requiring triangulation (1 = requires triangulation).
     """
-    idx1, idx2 = get_idxs_in_correct_order(resected_idx, unresected_idx)
-    triangulation_status = np.ones(len(matches[idx1][idx2]), dtype=np.uint8)
-    pts3d_for_pnp: List[np.ndarray] = []
-    pts2d_for_pnp: List[Tuple[float, float]] = []
 
-    for pt3d in pts3d:
-        if resected_idx not in pt3d.view_indices:
+    # Determine consistent indexing order for camera pair
+    idx_a, idx_b = get_idxs_in_correct_order(resected_cam_idx, unresected_cam_idx)
+
+    # Initialize flags indicating points to triangulate (default: all require triangulation)
+    triangulation_flags = np.ones(len(match_list[idx_a][idx_b]), dtype=np.uint8)
+
+    pnp_points_3d: List[np.ndarray] = []
+    pnp_points_2d: List[Tuple[float, float]] = []
+
+    # Iterate over existing 3D points to find correspondences
+    for point_3d in points_3d:
+        # Skip points that are not observed in the resected camera
+        if resected_cam_idx not in point_3d.view_indices:
             continue
 
-        ref_kpt_idx = pt3d.view_indices[resected_idx]
-        for m_idx, match in enumerate(matches[idx1][idx2]):
-            unresected_kpt_idx, ok = check_and_get_unresected_point(
-                ref_kpt_idx, match, resected_idx, unresected_idx
+        # Reference keypoint index in the resected camera
+        ref_kpt_idx = point_3d.view_indices[resected_cam_idx]
+
+        # Check matches between the current camera pair
+        for match_idx, match in enumerate(match_list[idx_a][idx_b]):
+            unresected_kpt_idx, is_match_valid = check_and_get_unresected_point(
+                ref_kpt_idx, match, resected_cam_idx, unresected_cam_idx
             )
-            if not ok:
+
+            if not is_match_valid:
                 continue
 
-            # update view and collect for PnP
-            pt3d.view_indices[unresected_idx] = unresected_kpt_idx
-            pts3d_for_pnp.append(pt3d.coords)
-            pts2d_for_pnp.append(keypoints[unresected_idx][unresected_kpt_idx].pt)
-            triangulation_status[m_idx] = 0
+            # Record the matched point in unresected camera views
+            point_3d.view_indices[unresected_cam_idx] = unresected_kpt_idx
 
-    return pts3d, pts3d_for_pnp, pts2d_for_pnp, triangulation_status
+            # Append valid correspondences for PnP
+            pnp_points_3d.append(point_3d.coords)
+            pnp_points_2d.append(keypoints_list[unresected_cam_idx][unresected_kpt_idx].pt)
+
+            # Mark this match as already having a correspondence (no triangulation needed)
+            triangulation_flags[match_idx] = 0
+
+    return points_3d, pnp_points_3d, pnp_points_2d, triangulation_flags
 
 
 # ---------- PnP Pose Estimation ----------

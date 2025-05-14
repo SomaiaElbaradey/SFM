@@ -13,30 +13,38 @@ def extract_matched_keypoints(
     mask: Optional[np.ndarray] = None
 ) -> Tuple[np.ndarray, np.ndarray, List[int], List[int]]:
     """
-    Pull out corresponding keypoint coordinates for two images.
+    Retrieve corresponding keypoint coordinates and their indices for two images.
+
+    Args:
+        i: Index of the first image.
+        j: Index of the second image.
+        keypoints: List of keypoint lists per image.
+        matches: Nested list of cv2.DMatch objects for each image pair.
+        mask: Optional array indicating which matches to include (1=use, 0=skip).
 
     Returns:
-        pts_i, pts_j : np.ndarray of shape (N,1,2) for cv2 functions
-        idxs_i, idxs_j : original keypoint indices
+        pts_i, pts_j: Arrays of shape (N, 1, 2) with 2D coordinates for cv2.
+        idxs_i, idxs_j: Corresponding original keypoint indices in each image.
     """
-    if mask is None:
-        # all matches used. This is helpful if we only want to triangulate certain matches.
-        mask = np.ones(len(matches[i][j])) 
+    pair_matches = matches[i][j]
+    total_matches = len(pair_matches)
+    valid_mask = mask if mask is not None else np.ones(total_matches, dtype=bool)
 
-    kpts_i, kpts_i_idxs, kpts_j, kpts_j_idxs = [], [], [], []
+    pts_i_list, pts_j_list = [], []
+    idxs_i, idxs_j = [], []
 
-    for k in range(len(matches[i][j])):
-        if mask[k] == 0: 
+    for k, match in enumerate(pair_matches):
+        if not valid_mask[k]:
             continue
-        kpts_i.append(keypoints[i][matches[i][j][k].queryIdx].pt)
-        kpts_i_idxs.append(matches[i][j][k].queryIdx)
-        kpts_j.append(keypoints[j][matches[i][j][k].trainIdx].pt)
-        kpts_j_idxs.append(matches[i][j][k].trainIdx)
+        kp_i = keypoints[i][match.queryIdx].pt
+        kp_j = keypoints[j][match.trainIdx].pt
 
-    kpts_i = np.array(kpts_i)
-    kpts_j = np.array(kpts_j)
-    kpts_i = np.expand_dims(kpts_i, axis=1)
-    kpts_j = np.expand_dims(kpts_j, axis=1)
+        pts_i_list.append(kp_i)
+        idxs_i.append(match.queryIdx)
+        pts_j_list.append(kp_j)
+        idxs_j.append(match.trainIdx)
 
-    return kpts_i, kpts_j, kpts_i_idxs, kpts_j_idxs
+    pts_i = np.expand_dims(np.array(pts_i_list, dtype=float), axis=1)
+    pts_j = np.expand_dims(np.array(pts_j_list, dtype=float), axis=1)
 
+    return pts_i, pts_j, idxs_i, idxs_j
