@@ -1,8 +1,33 @@
-# Structure from Motion Implementation 
 
-## Overview
+# Structure from Motion Implementation Project
 
-This project implements a complete Structure from Motion (SfM) pipeline that reconstructs 3D scenes from sequences of 2D images. The implementation builds a sparse 3D point cloud through feature detection, matching, camera pose estimation, triangulation, and bundle adjustment.
+
+
+- **Authors:**  
+CHERIA Mehdi  
+ELBARADEY Somaia   
+SHILI Samer 
+
+- **Instructors:**  
+Lord Prof. Dr. David Fofi  
+Yohan Fougerolle  
+Zaar Khizar    
+
+## abstract
+
+This project implements a complete Structure from Motion (SfM) pipeline that reconstructs 3D scenes from sequences of 2D images taken from different positions. In this project , pre calibrated 2D images taken from different ponits of view are provided , The implementation builds a sparse 3D point cloud through feature detection, matching, camera pose estimation, triangulation, and bundle adjustment.The problem is solved using classical methods of computer
+vision.
+
+
+
+## Objective
+
+The objective of this project is to implement a complete Structure from Motion pipeline that reconstructs a sparse 3D point cloud of a static scene from multiple calibrated or pre-calibrated images. This includes:
+- Detecting and matching robust feature points across images  
+- Estimating the fundamental and essential matrices to recover camera motion  
+- Computing camera poses and performing triangulation  
+- Registering additional views to refine the reconstruction and expand the 3D model
+
 
 ## Theory
 
@@ -10,17 +35,33 @@ This project implements a complete Structure from Motion (SfM) pipeline that rec
 
 Structure from Motion is a photogrammetric technique that estimates 3D structures from 2D image sequences. The process works by:
 
-1. **Feature Detection & Matching**: Identifying distinctive points in each image and finding correspondences between them.
-2. **Initial Pair Selection**: Choosing a good first pair of images with sufficient parallax and feature overlap.
-3. **Relative Pose Estimation**: Computing the essential matrix and recovering camera pose.
-4. **Triangulation**: Reconstructing 3D points from matched 2D points and known camera poses.
-5. **Incremental Reconstruction**: Adding more images to the reconstruction through PnP (Perspective-n-Point).
-6. **Bundle Adjustment**: Refining both camera poses and 3D points to minimize reprojection error.
+1. **Feature extraction & Matching and Outlier Rejection using RANSAC**: Identifying distinctive points in each image and finding correspondences between them.
+2. **Relative Pose Estimation**: Computing the essential matrix from the fundamental matrix and recovering camera pose.
+3. **Triangulation and reprojection error**: Reconstructing 3D points from matched 2D points and known camera poses.
+4. **Incremental Reconstruction**: Adding more images to the reconstruction through PnP (Perspective-n-Point) and estimate the pose.
+5. **Bundle Adjustment and 3D points refinement**: Refining both camera poses and 3D points to minimize reprojection error.
 
-### Camera Model
 
-We use the pinhole camera model represented by its intrinsic matrix:
+## 1. **Feature extraction & Matching and Outlier Rejection using RANSAC**: 
+Before diving into the theory of feature matching and outlier rerjection , lets begin with the mathematical basics to start with . 
 
+## Theoretical Foundations of Epipolar Geometry
+
+Understanding Structure from Motion begins with the fundamentals of camera geometry and the relationships between views. This section outlines the core geometric and algebraic models that underpin 3D reconstruction from images.
+
+---
+
+###  1. Camera Model (Pinhole Projection)
+
+In SfM, we assume a **pinhole camera model**, where a 3D point \( X = [X, Y, Z]^T \) is projected onto a 2D image point \( x = [x, y]^T \) via the camera projection matrix:
+
+\[
+x = K [R \,|\, t] X
+\]
+
+Where:
+- \( R \), \( t \): Rotation and translation (camera pose)
+- \( K \): Intrinsic parameters matrix (focal lengths and principal point)
 $$
 K = \begin{bmatrix}
 f_x & 0 & c_x \\
@@ -28,30 +69,288 @@ f_x & 0 & c_x \\
 0 & 0 & 1
 \end{bmatrix}
 $$
-
 Where:
 - $(f_x, f_y)$ are the focal lengths in pixel units
 - $(c_x, c_y)$ is the principal point (optical center) in pixel coordinates
 
-### Epipolar Geometry
+- \( P = K[R|t] \): Full camera projection matrix
 
-For two images, the Essential matrix $E$ encodes the epipolar constraints:
+
+
+###  2. Epipolar Geometry
+
+Epipolar geometry describes the **intrinsic projective geometry** between two views. It defines how a 3D point \( X \) observed from two different camera centers \( C \) and \( C' \) projects to corresponding image points \( x \) and \( x' \).
+
+- All three points \( X \), \( x \), and \( x' \) lie in a common plane called the **epipolar plane**.
+- The projection of this plane on each image results in **epipolar lines**.
+- A point \( x \) in image 1 will have its corresponding point \( x' \) somewhere along its **epipolar line** in image 2.
+
+Let us consider the case where a 3D point \( X \) is visible in two images as \( x \) in the first image and \( x' \) in the second. Suppose only \( x \) is known.
+Since the point \( X \), and the two camera centers \( C \) and \( C' \), all lie in the same **epipolar plane** \( \pi \), the corresponding point \( x' \) must lie along the intersection of this plane with the second image plane. This intersection is known as the **epipolar line** \( l' \) corresponding to \( x \) as shown in figure 2.
+![Figure 1](images/epipole1.png)
+![Figure 2](images/epipole2.png)
+Key definitions:
+- **Epipole**: Intersection of the baseline (line between camera centers) with the image plane.
+- **Epipolar Line**: The projection of a 3D ray in the second view.
+- **Epipolar Plane**: Plane containing the 3D point and both camera centers.
+
+The benefit is computational: we **don’t search over the full image**, but only along the corresponding epipolar line.
+
+---
+## Feature Extraction & Matching
+
+Feature extraction involves identifying distinctive, repeatable keypoints in each image, often using algorithms like SIFT (Scale-Invariant Feature Transform). Each keypoint is described by a local descriptor—a high-dimensional vector that encodes gradient orientation information.
+
+**Mathematics**:
+- Keypoints are detected as extrema in scale space using the Difference of Gaussians (DoG):
+  \[
+  D(x, y, \sigma) = [G(x, y, k\sigma) - G(x, y, \sigma)] * I(x, y)
+  \]
+  where \( G \) is the Gaussian filter, \( \sigma \) is the scale, and \( I(x, y) \) is the image.
+
+- Each keypoint is described by a 128-dimensional SIFT descriptor vector constructed from gradient orientations in a 16×16 region around the keypoint.
+
+**Matching**:  
+Descriptors between image pairs are matched using nearest-neighbor search in descriptor space, typically with a **k-Nearest Neighbors (k=2)** approach.
+
+**Lowe’s Ratio Test**:
+\[
+\frac{\|d_{\text{query}} - d_1\|}{\|d_{\text{query}} - d_2\|} < 0.7
+\]
+⮕ This test filters ambiguous matches by comparing the closest and second-closest descriptor distances.
+![Example of Feature Matching](matching.png)
+
+---
+Match Analysis Utilities
+
+### Purpose
+These functions analyze feature matches between image pairs to:
+1. Quantify total matches (`count_total_matches`)
+2. Evaluate image pair connectivity (`display_connected_pairs`)
+3. Build an adjacency matrix for graph representation (`build_adjacency_matrix`)
+
+### Key Concepts
+
+1. **Match Counting**:
+   - Sums matches in the upper triangle of the match matrix (avoiding duplicates from symmetric pairs).
+   -  $\sum_{i=1}^n \sum_{j=i+1}^n |matches[i][j]|$
+
+2. **Connectivity Check**:
+   - Identifies image pairs with at least one valid match.
+   - Useful for detecting isolated images in the reconstruction graph.
+
+3. **Adjacency Matrix**:
+   - Constructs a binary matrix $A$ where:
+     \[
+     A_{ij} = \begin{cases} 
+     1 & \text{if images } i \text{ and } j \text{ have matches} \\
+     0 & \text{otherwise}
+     \end{cases}
+     \]
+   - Also returns a list of connected pairs for traversal.
+
+---
+## Fundamental Matrix \( F \)
+
+The **fundamental matrix** encodes the epipolar constraint algebraically. It maps a point in image 1 to its corresponding **epipolar line** in image 2.To estimate it , at least **8 point correspondences** between two images are required. These correspondences form a linear system:
+
+\[
+A \cdot f = 0
+\]
+Where:
+- \( A \) is a matrix built from the matched points,
+- \( f \) is a 9×1 vector representing the unknown elements of \( F \).
+\[
+[x'_i\ y'_i\ 1]
+\begin{bmatrix}
+f_{11} & f_{12} & f_{13} \\
+f_{21} & f_{22} & f_{23} \\
+f_{31} & f_{32} & f_{33}
+\end{bmatrix}
+\begin{bmatrix}
+x_i \\
+y_i \\
+1
+\end{bmatrix}
+= 0
+\]
+
+This system is solved using **Singular Value Decomposition (SVD)**:
+
+\[
+A = U \Sigma V^T
+\]
+\[
+\begin{bmatrix}
+x_1 x'_1 & x_1 y'_1 & x_1 & y_1 x'_1 & y_1 y'_1 & y_1 & x'_1 & y'_1 & 1 \\
+x_2 x'_2 & x_2 y'_2 & x_2 & y_2 x'_2 & y_2 y'_2 & y_2 & x'_2 & y'_2 & 1 \\
+\vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots \\
+x_m x'_m & x_m y'_m & x_m & y_m x'_m & y_m y'_m & y_m & x'_m & y'_m & 1 \\
+\end{bmatrix}
+\begin{bmatrix}
+f_{11} \\
+f_{21} \\
+f_{31} \\
+f_{12} \\
+f_{22} \\
+f_{32} \\
+f_{13} \\
+f_{23} \\
+f_{33} \\
+\end{bmatrix}
+= 0
+\]
+
+The solution is the **last column of \( V \)**, corresponding to the smallest singular value.
+
+However, due to noise, the estimated \( F \) may have full rank (3). To enforce the correct **rank-2 constraint**, we set the smallest singular value of \( F \) to zero and recompute \( F \).
+
+🔹 A true fundamental matrix must be rank 2; otherwise, it fails to define valid epipolar geometry (no epipoles).
+
+---
+
+## Essential Matrix \( E \)
+
+When the cameras are **calibrated**, we can compute the **essential matrix**:
+
+\[
+E = K^T F K
+\]
+
+Where:
+- \( K \) is the intrinsic matrix of the camera
+- \( E \) encodes the relative **rotation and translation** between cameras
+
+The essential matrix satisfies the same epipolar constraint:
+
+\[
+x'^T E x = 0
+\]
+
+Decomposing \( E \) (using SVD) gives the relative **rotation \( R \)** and **translation \( t \)**, which are used for pose recovery and triangulation.
+
+
+---
+
+## Outlier Rejection using RANSAC
+
+Since the point correspondences are computed using SIFT , the data is bound to be noisy and in general contains several outliers. Thus, to remove these outliers, we use RANSAC algorithm to obtain a better estimate of the fundamental matrix. So, out of all possibilities, the F matrix with maximum number of inliers is chosen. Below is the pseduo-code that returns the F
+matrix for a set of matching corresponding points (computed using SIFT) which maximizes the number of inliers.
+
+![RANSAC Algorithm](images/ransac.png)
+
+**Mathematics**:
+The fundamental matrix relates corresponding points between two views:
+\[
+x_j^T F x_i = 0
+\]
+where \( x_i \) and \( x_j \) are homogeneous coordinates of matched keypoints in image 1 and image 2, respectively.
+
+RANSAC Algorithm:
+1. Randomly sample minimal sets (≥8 pairs for F).
+2. Estimate a candidate fundamental matrix \( F \).
+3. Compute reprojection error for all matches.
+4. Count inliers: points that satisfy
+   \[
+   \text{error} = |x_j^T F x_i| < \epsilon
+   \]
+5. Repeat for N iterations; keep the model with the highest inlier count.
+
+⮕ This improves the geometric consistency of matches and reduces the influence of noise or mismatches.
+
+---
+##  **Relative CamPose Estimation**:
+### 1. Camera Pose from Essential Matrix
+
+The relative camera pose between two views consists of:
+- **Rotation** (3 DOF): $R \in SO(3)$  
+- **Translation** (3 DOF): $t \in \mathbb{R}^3$
+
+Given the Essential Matrix $E = U D V^T$, four possible pose configurations exist:
+
+| Solution | Rotation ($R$)          | Camera Center ($C$) |
+|----------|--------------------------|---------------------|
+| 1        | $U W V^T$                | $U[:,2]$            |
+| 2        | $U W V^T$                | $-U[:,2]$           |
+| 3        | $U W^T V^T$              | $U[:,2]$            |
+| 4        | $U W^T V^T$              | $-U[:,2]$           |
+
+Where $W = \begin{bmatrix}0&-1&0\\1&0&0\\0&0&1\end{bmatrix}$ ensures $det(R)=1$.
+
+### 2. Resolving Ambiguity with Cheirality Condition
+
+Only one solution places all 3D points **in front of both cameras**. The cheirality condition enforces:
 
 $$
-x_2^T E x_1 = 0
+r_3(X - C) > 0
 $$
 
-Where $x_1$ and $x_2$ are normalized image coordinates of corresponding points. From $E$, we can extract the relative rotation $R$ and translation $t$ between cameras.
+- $r_3$: Third row of $R$ (camera's z-axis)  
+- $X$: 3D point in world coordinates  
+- $C$: Camera center  
 
-### Perspective-n-Point (PnP)
+**Verification Process**:
+1. Triangulate matched points for each candidate pose.
+2. Count points satisfying:
+   - $Z_{cam} > 0$ in **both** cameras (positive depth)
+3. Select the pose with **maximum valid points**.
 
-PnP solves for camera pose given 3D-to-2D correspondences. For a 3D point $X$ and its 2D projection $x$:
+---
+## Triangulation and reprejection error 
+### 1. Linear Triangulation (Initial Estimate)
+Given two camera poses with projection matrices \( P_1 \) and \( P_2 \), a 3D point \( X \) can be estimated by solving the linear system:
+\[
+\begin{cases}
+x_1 \times (P_1 X) = 0 \\
+x_2 \times (P_2 X) = 0 
+\end{cases}
+\]
+where \( x_1, x_2 \) are 2D correspondences in homogeneous coordinates. This minimizes the **algebraic error** via SVD.
 
-$$
-x = K[R|t]X
-$$
+### 2. Nonlinear Refinement (Reprojection Error)
+The linear solution is refined by minimizing the **geometric reprojection error**:
+\[
+\min_X \sum_{j=1}^2 \left( \left(u_j - \frac{P_j^{(1)} \tilde{X}}{P_j^{(3)} \tilde{X}}\right)^2 + \left(v_j - \frac{P_j^{(2)} \tilde{X}}{P_j^{(3)} \tilde{X}}\right)^2 \right)
+\]
+where:
+- \( P_j^{(i)} \): \( i \)-th row of camera \( j \)'s projection matrix
+- \( \tilde{X} \): Homogeneous coordinates of \( X \) (\( \tilde{X} = [X^T, 1]^T \))
+- \( (u_j, v_j) \): Observed 2D point in image \( j \)
 
-We use RANSAC-PnP to robustly estimate camera pose in the presence of outliers.
+---
+## Incremental Reconstruction
+
+
+In the incremental Structure from Motion pipeline, once we have an initial set of 3D points reconstructed from previous views, we can estimate the **pose of a new camera** using the **Perspective-n-Point (PnP)** method.
+
+### What is PnP?
+
+PnP is the problem of finding the position and orientation of a camera given:
+
+- A set of **3D points** \( \{X_i\} \) in world coordinates
+- Their corresponding **2D projections** \( \{x_i\} \) in the new image
+- The **intrinsic camera matrix** \( K \)
+
+The goal is to find the rotation \( R \) and translation \( t \) that satisfy:
+
+\[
+x_i \approx K [R \mid t] X_i
+\]
+
+This means projecting the known 3D points into the image and minimizing the error between the projected and observed 2D points.
+
+### Our Implementation
+
+- We extract 3D–2D correspondences between an already-reconstructed camera and the new image.
+- We use OpenCV's `solvePnP` with the **iterative Levenberg–Marquardt** algorithm to estimate \( R \) and \( t \).
+- We repeat the estimation several times on random 6-point subsets and choose the best pose based on reprojection error as a mini RANSAC algorithm mentionned below.
+- The quality of each pose is evaluated by computing how well the 3D points project onto the image plane (reprojection error and inlier ratio).
+ ![PNP Algorithm](pnpransac.png)
+
+#### 🧩 Role of PnP in SfM
+
+PnP is used **each time a new image is added** to the reconstruction. It provides the pose of the new camera relative to the existing 3D structure, allowing us to triangulate new points and expand the 3D model incrementally.
+
 
 ### Bundle Adjustment
 
