@@ -145,8 +145,8 @@ def estimate_pose_pnp(
         sample_obj = obj_pts[idxs]
         sample_img = img_pts[idxs]
 
-        _, rvec, tvec = cv2.solvePnP(
-            sample_obj, sample_img, K, distCoeffs=np.array([]),
+        _, rvec, tvec = cv2.solvePnPRansac(
+            sample_obj, sample_img, K,
             flags=cv2.SOLVEPNP_ITERATIVE
         )
         R, _ = cv2.Rodrigues(rvec)
