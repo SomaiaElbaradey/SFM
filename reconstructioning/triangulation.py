@@ -97,15 +97,3 @@ def triangulate_and_reproject(
     paired_errors = list(zip(errors_left, errors_right))
     return points3d_with_views, paired_errors, avg_error_left, avg_error_right
 
-    # for i in range(len(projPoints_l)):
-    #     delta_l.append(abs(projPoints_l[i][0][0] - keypoints_left[i][0]))
-    #     delta_l.append(abs(projPoints_l[i][0][1] - keypoints_left[i][1]))
-    #     delta_r.append(abs(projPoints_r[i][0][0] - keypoints_right[i][0]))
-    #     delta_r.append(abs(projPoints_r[i][0][1] - keypoints_right[i][1]))
-    # avg_erroR_left = sum(delta_l)/len(delta_l)
-    # avg_error_r = sum(delta_r)/len(delta_r)
-    # print(f"Average reprojection error for just-triangulated points on image {img_idx_left} is:", avg_erroR_left, "pixels.")
-    # print(f"Average reprojection error for just-triangulated points on image {img_idx_right} is:", avg_error_r, "pixels.")
-    # errors = list(zip(delta_l, delta_r))
-    # return points3d_with_views, errors, avg_erroR_left, avg_error_r
-
