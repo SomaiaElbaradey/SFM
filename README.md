@@ -956,8 +956,6 @@ The reconstruction results will be saved in the `results` folder. Here are some 
 
 ![Temple Reconstruction](./results/result.gif)
 
-*Note: Replace the file paths with the actual paths to your GIF files in the results folder.*
-
 ## Dataset Preparation
 The code expects images to be in the following location:
 * Temple dataset: `./datasets/templeRing/00.png`, `./datasets/templeRing/01.png`, etc.
