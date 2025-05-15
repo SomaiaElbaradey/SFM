@@ -973,8 +973,6 @@ The reconstruction results will be saved in the `results` folder. Here are some 
 ![Result1](images/4.png)
 
 
-*Note: Replace the file paths with the actual paths to your GIF files in the results folder.*
-
 ## Implementation Details
 
 ### Key Classes and Functions
