@@ -20,11 +20,10 @@ CAMERA_MATRICES: Dict[str, np.ndarray] = {
         [0.0, -2.3981, 0.6283],
         [0.0, 0.0, 0.0010]
     ]),
-    "wazgha": np.array([
-        [7.96599496e+03, 0.00e+00, 4.43831810e+03],
-        [0.00000000e+00, 7.89500643e+03, 1.94117547e+03],
-        [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]
-    ])
+    "custom": np.array([
+        [2.68010484e+03, 0.00000000e+00, 1.20555833e+03],
+        [0.00000000e+00, 2.69887481e+03, 1.60406955e+03],
+        [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
 }
 
 # --- Image Loading ------------------------------------------------------------
@@ -40,7 +39,7 @@ def load_images(
     if dataset not in CAMERA_MATRICES:
         raise ValueError(f"Unknown dataset: {dataset}")
     
-    if dataset == 'eglise' or dataset == 'wazgha': 
+    if dataset == 'eglise' or dataset == 'custom': 
         ext = 'JPG'
     else:
         ext = 'png'
@@ -51,8 +50,8 @@ def load_images(
         subdir = 'dinoRing'
     elif dataset == 'eglise':
         subdir = 'eglise'
-    elif dataset == 'wazgha':
-        subdir = 'wazgha'
+    elif dataset == 'custom':
+        subdir = 'custom'
     else:
         raise ValueError(f"Unknown dataset: {dataset}") 
 
