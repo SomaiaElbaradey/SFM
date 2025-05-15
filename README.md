@@ -1150,3 +1150,4 @@ Despite challenges with real-world datasets, the system performed reliably on ca
 
 3. Noah Snavely, Steven M. Seitz, Richard Szeliski. *Bundler: Structure from Motion for Unordered Image Collections*. ACM SIGGRAPH, 2006.
 
+---
