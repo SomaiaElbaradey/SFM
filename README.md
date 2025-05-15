@@ -347,7 +347,7 @@ This means projecting the known 3D points into the image and minimizing the erro
 - The quality of each pose is evaluated by computing how well the 3D points project onto the image plane (reprojection error and inlier ratio).
  ![PNP Algorithm](pnpransac.png)
 
-#### 🧩 Role of PnP in SfM
+####  Role of PnP in SfM
 
 PnP is used **each time a new image is added** to the reconstruction. It provides the pose of the new camera relative to the existing 3D structure, allowing us to triangulate new points and expand the 3D model incrementally.
 
@@ -368,9 +368,141 @@ Where:
 
 ## Methodology
 
-### Feature Detection & Matching
+## 1.Extractiong and Matching Features 
 
-We use SIFT (Scale-Invariant Feature Transform) for feature detection and description due to its invariance to scale, rotation, and illumination changes. Features are matched between image pairs using a brute-force matcher with L1 norm and Lowe's ratio test to filter ambiguous matches. We further remove outliers using RANSAC with the fundamental matrix constraint.
+This section describes the implementation steps of our Structure from Motion pipeline. We focus here on the initial stages: from loading the dataset to building the image-pair connectivity graph.
+
+---
+
+###  1. Camera Calibration (Skipped)
+
+Although camera calibration is essential for custom datasets, our project uses **pre-calibrated datasets** like *TempleRing* and *DinoRing*, which already provide intrinsic parameters.  
+➡️ **No calibration code was required at this stage.**
+
+---
+
+###  2. Image Loading
+
+Images are loaded in grayscale from a dataset folder, and the corresponding **intrinsic matrix \( K \)** is returned based on the dataset name.
+
+```python
+img = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+```
+
+Each image is stored in a list, and camera intrinsics are selected from a predefined dictionary:
+
+```python
+CAMERA_MATRICES: Dict[str, np.ndarray] = {
+    'templering': np.array([[...]]),
+    'dingoring': np.array([[...]])
+}
+```
+
+---
+
+### 3. Feature Extraction (SIFT)
+
+SIFT (Scale-Invariant Feature Transform) is applied to each image to extract keypoints and descriptors:
+
+```python
+sift = cv2.SIFT_create()
+kp, des = sift.detectAndCompute(img, None)
+```
+
+The function returns:
+- `keypoints`: coordinates and scales of features
+- `descriptors`: 128-dimensional vectors representing local appearance
+
+---
+
+###  4. Feature Matching (Lowe's Ratio Test)
+
+For each pair of images, we perform descriptor matching using **Brute-Force Matching** with k-nearest neighbors (k=2), followed by **Lowe’s Ratio Test** to filter out ambiguous matches:
+
+```python
+raw = matcher.knnMatch(descriptors[i], descriptors[j], k=2)
+good = [m[0] for m in raw if len(m) == 2 and m[0].distance < 0.7 * m[1].distance]
+```
+
+Result:
+- A **match matrix** is built: `matches[i][j]` contains filtered matches between image `i` and `j`.
+
+---
+
+### 5. Outlier Removal using RANSAC
+
+To ensure geometric consistency, each image pair’s matches are validated by estimating the **fundamental matrix** using RANSAC:
+
+```python
+F, mask = cv2.findFundamentalMat(pts_i, pts_j, cv2.FM_RANSAC, ransacReprojThreshold=3.0)
+```
+
+Inliers are kept:
+
+```python
+filtered = [d for k, d in enumerate(m) if mask[k]]
+```
+
+If the number of inliers is below a threshold (e.g., 20), the match is discarded.
+
+---
+
+###  6. Building the Adjacency Matrix
+
+A binary **adjacency matrix** is created to record which image pairs have enough valid matches:
+
+```python
+adj[i, j] = 1 if matches[i][j] else 0
+```
+
+Each entry indicates whether images `i` and `j` are connected. This matrix helps construct the image connection graph and select the initial pair for reconstruction.
+
+```python
+adj = np.zeros((num_images, num_images), dtype=int)
+pairs = []
+for i in range(num_images):
+    for j in range(i+1, num_images):
+        if matches[i][j]:
+            adj[i, j] = 1
+            pairs.append((i, j))
+```
+
+---
+
+
+## 2. Initial Pair Selection
+
+To initialize the 3D reconstruction, we must choose a strong starting pair of images. This step is crucial for building a reliable baseline for triangulation.
+
+We select the best pair based on two criteria:
+- A **high number of matched features**
+- A **large relative rotation angle** between the cameras
+
+This ensures that the initial pair is both geometrically stable and informative.
+
+
+- **`cv2.findEssentialMat`**: Computes the essential matrix \( E \) from matched 2D points and the known camera intrinsics.
+- **`cv2.recoverPose`**: Extracts the relative rotation \( R \) and translation \( t \) between the two camera views.
+- **`cv2.Rodrigues`**: Converts the rotation matrix into a vector for easy angle comparison.
+
+
+
+####  Algorithm Process
+
+1. For every connected image pair in the **adjacency matrix**, check the number of matches.
+2. Filter pairs that are within the **top X% of match count**.
+3. For those, compute the essential matrix and recover the camera pose.
+4. Choose the pair with the **largest rotation angle** and **valid full inlier set** as the initial pair.
+
+```python
+if rotation_angle > best_rotation_angle and num_points == len(pts_i):
+    best_pair = (i, j)
+```
+
+⮕ The selected pair forms the **baseline** for the initial 3D triangulation and allows the SfM pipeline to expand incrementally from a reliable foundation.
+
+---
+
 
 ### Reconstruction Initialization
 
