@@ -1013,6 +1013,6 @@ The code expects images to be in the following location:
 * Add support for unordered image collections.
 
 ## Acknowledgments
-This implementation is based on multiple computer vision and structure from motion techniques. The datasets (Temple Ring and Dino Ring) are from the Middlebury Multi-View Stereo dataset.
+This implementation is based on multiple computer vision and structure from motion techniques. The datasets (Temple Ring and Dino Ring) are from the Middlebury Multi-View Stereo dataset
 
 ## References
