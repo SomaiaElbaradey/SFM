@@ -41,7 +41,7 @@ Structure from Motion is a photogrammetric technique that estimates 3D structure
 4. **Incremental Reconstruction**: Adding more images to the reconstruction through PnP (Perspective-n-Point) and estimate the pose.
 5. **Bundle Adjustment and 3D points refinement**: Refining both camera poses and 3D points to minimize reprojection error.
 
-![SFM Pipeline](images\diagram)
+![SFM Pipeline](images\diagram.png)
 
 
 ## 1. **Theoretical Foundations of Epipolar Geometry**
@@ -1021,7 +1021,7 @@ Although some noise and sparse outliers exist, the dense shape consistency confi
 
 To evaluate the geometric accuracy of the reconstruction, we monitored the **mean reprojection error** as new views were added. As shown in the plot below:
 
-![Result2](images/5.png)
+![Result2](images/5.PNG)
 
 - The mean error generally remained **below 0.3 pixels**, with local fluctuations depending on image overlap and feature distribution.
 - A slight increase in error occurred mid-sequence, possibly due to views with limited visual overlap or fewer distinctive keypoints.
