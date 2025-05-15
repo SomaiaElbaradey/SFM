@@ -370,7 +370,7 @@ This means projecting the known 3D points into the image and minimizing the erro
 - We use OpenCV's `solvePnP` with the **iterative Levenberg–Marquardt** algorithm to estimate \( R \) and \( t \).
 - We repeat the estimation several times on random 6-point subsets and choose the best pose based on reprojection error as a mini RANSAC algorithm mentionned below.
 - The quality of each pose is evaluated by computing how well the 3D points project onto the image plane (reprojection error and inlier ratio).
- ![PNP Algorithm](images\pnpransac.png)
+ ![PNP Algorithm](images/pnpransac.png)
 
 ####  6.3 Role of PnP in SfM
 
@@ -950,16 +950,28 @@ jupyter nbconvert --to notebook --execute main.ipynb --output main_output.ipynb
    * Bundle adjustment frequency
    * Visualization options
 
-## Results
-
-The reconstruction results will be saved in the `results` folder. Here are some sample visualizations:
-
-![Temple Reconstruction](./results/result.gif)
+# Results
 
 ## Dataset Preparation
 The code expects images to be in the following location:
 * Temple dataset: `./datasets/templeRing/00.png`, `./datasets/templeRing/01.png`, etc.
 * Dino dataset: `./datasets/dinoRing/00.png`, `./datasets/dinoRing/01.png`, etc.
+
+![data](images/01.png)
+![data](images/02.png)
+![data](images/03.png)
+![data](images/04.png)
+
+## Real Results 
+The reconstruction results will be saved in the `results` folder. Here are some sample visualizations:
+
+![Temple Reconstruction](./results/result.gif)
+
+![Result1](images/1.png)
+![Result1](images/2.png)
+![Result1](images/3.png)
+![Result1](images/4.png)
+
 
 ## Implementation Details
 
@@ -989,13 +1001,100 @@ The code expects images to be in the following location:
 4. **Bundle Adjustment Scheduling**: We run bundle adjustment at increasing intervals as the reconstruction grows to balance performance and accuracy.
 5. **Point Filtering**: We filter out triangulated points that are too far from the scene to remove outliers.
 
-## Discussion
 
-### Strengths
-* The implementation successfully handles ring-like camera paths, common in object-centered photography.
-* Incremental reconstruction with periodic bundle adjustment provides robust results
-* The use of SIFT features provides good invariance to viewing conditions.
-* The RANSAC-based outlier removal produces clean reconstructions.
+
+##  Discussion
+
+This project successfully implemented an **incremental Structure from Motion (SfM)** pipeline using classical computer vision techniques. The reconstruction was built from a pre-calibrated image dataset and followed a structured pipeline: from feature extraction and matching to triangulation and global bundle adjustment.
+
+---
+
+###  3D Reconstruction Quality
+
+The resulting 3D point cloud (see above) demonstrates good spatial coherence and structural geometry, particularly in regions with strong texture and overlapping viewpoints. The colored depth distribution indicates that features were successfully matched and triangulated across a wide range of perspectives.
+
+Although some noise and sparse outliers exist, the dense shape consistency confirms that the incremental reconstruction worked correctly.
+
+---
+
+###  Reprojection Error Analysis
+
+To evaluate the geometric accuracy of the reconstruction, we monitored the **mean reprojection error** as new views were added. As shown in the plot below:
+
+![Result2](images/5.png)
+
+- The mean error generally remained **below 0.3 pixels**, with local fluctuations depending on image overlap and feature distribution.
+- A slight increase in error occurred mid-sequence, possibly due to views with limited visual overlap or fewer distinctive keypoints.
+- The error remained stable after Bundle Adjustment, validating the optimization process.
+
+⮕ These values indicate a **robust calibration and consistent triangulation**, as errors below 1 pixel are typically acceptable in SfM.
+
+
+---
+
+# Challenges 
+
+Throughout the project, we faced several technical and practical challenges that influenced the workflow, especially when working with a **custom dataset** and comparing it with **pre-calibrated academic datasets** like TempleRing or DinoRing.
+
+---
+
+
+
+### 1. Object Selection and Visual Texture
+
+Finding a suitable object for 3D reconstruction was a major obstacle. Many real-world objects lacked:
+- Enough texture or features,
+- Clear color contrast,
+- Consistent lighting response.
+
+> We attempted reconstruction with three different objects, but none produced usable results due to poor keypoint extraction and matching.
+
+| ![Custom Data 1](images/wazgha1.jpg) | ![Custom Data 1](images/wazgha2.jpg) |
+|:------------------------------:|:------------------------------:|
+*Object attempt 1*             
+
+| ![Custom Data 2](images/data2.jpg) | ![Custom Data 2](images/data2.1.jpg) |
+|:---------------------------------:|:---------------------------------:|
+ *Object attempt 2*            
+
+### 2. Image Resolution and Storage Issues
+
+High-resolution images significantly increased:
+- Processing time,
+- Memory usage,
+- Storage requirements (over 1 GB for 1 dataset).
+
+To mitigate this, we had to **reduce image quality** and resolution — a trade-off between accuracy and computational feasibility.
+
+
+### 5. Long Computation Time and Crashes
+
+For some datasets, especially with 40+ images, the pipeline required over **600 minutes** on a standard laptop, eventually causing a system crash.
+
+> Interestingly, the same pipeline worked perfectly with pre-calibrated datasets — highlighting the difficulty of handling real-world uncontrolled conditions.
+
+### 5.Calibration Sensitivity: 
+Small errors in checkerboard detection or lighting conditions caused instability in the estimation of intrinsic parameters. We had to enhance the calibration script multiple times, experimenting with different board sizes, image counts, and angle coverage.
+
+### 6. Feature Matching Issues: 
+Despite using SIFT, matching consistency was a challenge across certain image pairs — particularly in cases with repetitive textures or low contrast. We faced:
+  - False matches (outliers) despite using Lowe's ratio test,
+  - Difficulty achieving sufficient good matches for later triangulation steps.
+
+
+### 7. PnP Correspondence Limitation
+
+In the incremental phase, Perspective-n-Point (PnP) estimation required enough 2D–3D matches. If insufficient matches existed between the new view and existing points, pose estimation failed or became inaccurate.
+
+### 8. Bundle Adjustment Scalability
+
+While bundle adjustment significantly refined the model, it was:
+- Computationally expensive,
+- Memory intensive when working with dozens of views and thousands of points.
+
+Using full BA without sparsity exploitation could slow down the process drastically.
+
+---
 
 ### Limitations
 * Dense reconstruction is not implemented; the result is a sparse point cloud.
@@ -1003,14 +1102,50 @@ The code expects images to be in the following location:
 * Performance could be improved with GPU acceleration for feature extraction and matching.
 * The system assumes calibrated cameras with known intrinsics.
 
-### Future Work
-* Implement dense reconstruction to create complete surface models.
-* Add texture mapping to produce photorealistic 3D models.
-* Include automatic camera calibration for uncalibrated image sets.
-* Optimize for larger datasets using hierarchical approaches.
-* Add support for unordered image collections.
 
-## Acknowledgments
-This implementation is based on multiple computer vision and structure from motion techniques. The datasets (Temple Ring and Dino Ring) are from the Middlebury Multi-View Stereo dataset
+---
+
+## Future Work
+
+While this project demonstrates a complete Structure from Motion (SfM) pipeline, several improvements can be made to enhance performance, scalability, and robustness:
+
+- **Loop Closure & Global Optimization**: Add loop closure detection to mitigate drift and enable global bundle adjustment for large scenes.
+- **Dense Reconstruction**: Extend the pipeline beyond sparse point clouds to generate dense 3D reconstructions or meshes.
+- **Feature Robustness**: Replace SIFT with deep-learning-based keypoint extractors (e.g. SuperPoint + SuperGlue) for better matching in low-texture scenes.
+- **GPU Acceleration**: Utilize OpenCL/CUDA or libraries like COLMAP to significantly reduce processing time.
+- **Automatic Calibration**: Automate the checkerboard calibration and integrate dynamic intrinsics estimation for real-world applications.
+
+---
+
+##  Acknowledgments
+
+This implementation is based on multiple computer vision and structure from motion techniques. The datasets (Temple Ring and Dino Ring) are from the Middlebury Multi-View Stereo dataset.
+
+We would like to thank our supervisors:
+- **Prof. Dr. David Fofi**,  
+- **Dr. Yohan Fougerolle**,  
+- **Dr. Zaar Khizar**
+
+for their guidance, constructive feedback, and support throughout the project.
+
+---
+
+# Conclusion
+
+This project has successfully implemented an end-to-end Structure from Motion system, capable of recovering 3D geometry and camera motion from a set of unordered images. By combining feature extraction, RANSAC-based matching, triangulation, PnP, and bundle adjustment, we demonstrated that accurate and scalable 3D reconstruction is achievable using classical computer vision techniques.
+
+Despite challenges with real-world datasets, the system performed reliably on calibrated image sequences, validating both our theoretical understanding and implementation skills.
+
+> This work reinforces key competencies in camera modeling, image processing, numerical optimization, and practical computer vision — laying a solid foundation for more advanced 3D vision applications in the future.
+
+---
 
 ## References
+
+1. Zhengyou Zhang. *A flexible new technique for camera calibration*. IEEE Transactions on Pattern Analysis and Machine Intelligence, 22(11):1330–1334, 2000.
+
+2. Richard Hartley and Andrew Zisserman. *Multiple View Geometry in Computer Vision*. Cambridge University Press, 2004.
+
+3. Noah Snavely, Steven M. Seitz, Richard Szeliski. *Bundler: Structure from Motion for Unordered Image Collections*. ACM SIGGRAPH, 2006.
+
+---
