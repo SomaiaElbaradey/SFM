@@ -144,7 +144,10 @@ Descriptors between image pairs are matched using nearest-neighbor search in des
 \frac{\|d_{\text{query}} - d_1\|}{\|d_{\text{query}} - d_2\|} < 0.7
 \]
 ⮕ This test filters ambiguous matches by comparing the closest and second-closest descriptor distances.
-![Example of Feature Matching](images/matching.png)
+![Example of Feature Matching](images/matches_0_2.png)
+![Example of Feature Matching](images/matches_2_5.png)
+![Example of Feature Matching](images/matches_7_9.png)
+
 
 ---
 ## 3.2 Match Analysis Utilities
@@ -176,60 +179,80 @@ These functions analyze feature matches between image pairs to:
    - Also returns a list of connected pairs for traversal.
 
 ---
-## 3.3 Fundamental Matrix \( F \)
+## 3.3 Fundamental Matrix (F)
 
-The **fundamental matrix** encodes the epipolar constraint algebraically. It maps a point in image 1 to its corresponding **epipolar line** in image 2.To estimate it , at least **8 point correspondences** between two images are required. These correspondences form a linear system:
+The **fundamental matrix** encodes the epipolar constraint algebraically. It maps a point in image 1 to its corresponding **epipolar line** in image 2. To estimate it, at least **8 point correspondences** between two images are required. These correspondences form a linear system:
 
-\[
-A \cdot f = 0
-\]
+**A · f = 0**
+
 Where:
-- \( A \) is a matrix built from the matched points,
-- \( f \) is a 9×1 vector representing the unknown elements of \( F \).
-\[
-[x'_i\ y'_i\ 1]
-\begin{bmatrix}
-f_{11} & f_{12} & f_{13} \\
-f_{21} & f_{22} & f_{23} \\
-f_{31} & f_{32} & f_{33}
-\end{bmatrix}
-\begin{bmatrix}
-x_i \\
-y_i \\
-1
-\end{bmatrix}
-= 0
-\]
+- **A** is a matrix built from the matched points,
+- **f** is a 9×1 vector representing the unknown elements of **F**.
 
-This system is solved using **Singular Value Decomposition (SVD)**:
+The constraint equation can be written as:
+[x'_i y'_i 1] · F · [x_i y_i 1]^T = 0
 
-\[
-A = U \Sigma V^T
-\]
-\[
-\begin{bmatrix}
-x_1 x'_1 & x_1 y'_1 & x_1 & y_1 x'_1 & y_1 y'_1 & y_1 & x'_1 & y'_1 & 1 \\
-x_2 x'_2 & x_2 y'_2 & x_2 & y_2 x'_2 & y_2 y'_2 & y_2 & x'_2 & y'_2 & 1 \\
-\vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots \\
-x_m x'_m & x_m y'_m & x_m & y_m x'_m & y_m y'_m & y_m & x'_m & y'_m & 1 \\
-\end{bmatrix}
-\begin{bmatrix}
-f_{11} \\
-f_{21} \\
-f_{31} \\
-f_{12} \\
-f_{22} \\
-f_{32} \\
-f_{13} \\
-f_{23} \\
-f_{33} \\
-\end{bmatrix}
-= 0
-\]
 
-The solution is the **last column of \( V \)**, corresponding to the smallest singular value.
+Where **F** is:
 
-However, due to noise, the estimated \( F \) may have full rank (3). To enforce the correct **rank-2 constraint**, we set the smallest singular value of \( F \) to zero and recompute \( F \).
+<table>
+<tr>
+<td>f<sub>11</sub></td><td>f<sub>12</sub></td><td>f<sub>13</sub></td>
+</tr>
+<tr>
+<td>f<sub>21</sub></td><td>f<sub>22</sub></td><td>f<sub>23</sub></td>
+</tr>
+<tr>
+<td>f<sub>31</sub></td><td>f<sub>32</sub></td><td>f<sub>33</sub></td>
+</tr>
+</table>
+
+And the point vector is:
+
+[x_i y_i 1]^T
+
+The matrix **A** is constructed using point correspondences:
+
+<table>
+<tr>
+  <td>x₁x'₁</td><td>x₁y'₁</td><td>x₁</td><td>y₁x'₁</td><td>y₁y'₁</td><td>y₁</td><td>x'₁</td><td>y'₁</td><td>1</td>
+</tr>
+<tr>
+  <td>x₂x'₂</td><td>x₂y'₂</td><td>x₂</td><td>y₂x'₂</td><td>y₂y'₂</td><td>y₂</td><td>x'₂</td><td>y'₂</td><td>1</td>
+</tr>
+<tr>
+  <td>⋮</td><td>⋮</td><td>⋮</td><td>⋮</td><td>⋮</td><td>⋮</td><td>⋮</td><td>⋮</td><td>⋮</td>
+</tr>
+<tr>
+  <td>xₘx'ₘ</td><td>xₘy'ₘ</td><td>xₘ</td><td>yₘx'ₘ</td><td>yₘy'ₘ</td><td>yₘ</td><td>x'ₘ</td><td>y'ₘ</td><td>1</td>
+</tr>
+</table>
+
+Multiplied by the vector **f**:
+
+<table>
+<tr><td>f<sub>11</sub></td></tr>
+<tr><td>f<sub>21</sub></td></tr>
+<tr><td>f<sub>31</sub></td></tr>
+<tr><td>f<sub>12</sub></td></tr>
+<tr><td>f<sub>22</sub></td></tr>
+<tr><td>f<sub>32</sub></td></tr>
+<tr><td>f<sub>13</sub></td></tr>
+<tr><td>f<sub>23</sub></td></tr>
+<tr><td>f<sub>33</sub></td></tr>
+</table>
+
+Gives us:
+
+A · f = 0
+
+
+---
+
+The solution is the **last column of V**, corresponding to the **smallest singular value**.
+
+However, due to noise, the estimated **F** may have full rank (3).  
+To enforce the correct **rank-2 constraint**, we set the smallest singular value of **F** to zero and recompute **F**.
 
 🔹 A true fundamental matrix must be rank 2; otherwise, it fails to define valid epipolar geometry (no epipoles).
 
