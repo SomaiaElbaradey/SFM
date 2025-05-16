@@ -41,7 +41,8 @@ Structure from Motion is a photogrammetric technique that estimates 3D structure
 4. **Incremental Reconstruction**: Adding more images to the reconstruction through PnP (Perspective-n-Point) and estimate the pose.
 5. **Bundle Adjustment and 3D points refinement**: Refining both camera poses and 3D points to minimize reprojection error.
 
-![SFM Pipeline](images\diagram.png)
+![diagram 1](images/diagram.png)
+
 
 
 ## 1. **Theoretical Foundations of Epipolar Geometry**
@@ -143,7 +144,7 @@ Descriptors between image pairs are matched using nearest-neighbor search in des
 \frac{\|d_{\text{query}} - d_1\|}{\|d_{\text{query}} - d_2\|} < 0.7
 \]
 ⮕ This test filters ambiguous matches by comparing the closest and second-closest descriptor distances.
-![Example of Feature Matching](matching.png)
+![Example of Feature Matching](images/matching.png)
 
 ---
 ## 3.2 Match Analysis Utilities
